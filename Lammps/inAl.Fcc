@@ -1,0 +1,58 @@
+# ------- initialization      -------------------------------------------------
+units metal
+boundary p p p
+atom_style atomic
+neighbor 2.0 bin
+
+# ------- scale & computation -------------------------------------------------
+
+variable  Lattice   equal 4.05
+
+variable DX	    equal ${Lattice}*sqrt(6)/2
+variable DY	    equal ${Lattice}*sqrt(3)/3
+variable DZ	    equal ${Lattice}*sqrt(2)
+
+variable LX	equal ${DX}*99*(1-1E-5)
+variable LY	equal ${DY}*105*(1-1E-5)   # should be in form of 3K
+variable LZ	equal ${DZ}*3*(1-1E-5)
+
+# ------- creat basic geometry      ------------------------------------------------- 
+
+lattice fcc ${Lattice} orient x 1 1 -2  orient y 1 1 1 orient z 1 -1 0 
+
+region whole block 1E-5 ${LX} 1E-5 ${LY} 1E-5 ${LZ} units box
+create_box 2 whole
+create_atoms 1 box
+
+change_box all triclinic
+
+
+# ------- EAM potentials      -------------------------------------------------
+
+pair_style eam/alloy
+pair_coeff * * Al99.eam.alloy Al Al
+
+ 
+# ------- timestep & log      -------------------------------------------------
+
+timestep        0.002
+thermo_style custom pxx pyy pzz pxy pxz pyz press vol etotal
+thermo 50
+
+# ------- energy minimization -------------------------------------------------
+
+fix 1 all box/relax x 0.0 y 0.0 z 0.0  xy 0. xz 0 yz 0 fixedpoint 0 0 0 vmax 0.001 
+
+minimize  1.0e-15 1.0e-15 20000 20000
+
+min_modify line forcezero
+minimize  1.0e-15 1.0e-15 20000 20000
+
+min_style sd
+min_modify line quadratic
+minimize  1.0e-15 1.0e-15 20000 20000
+unfix 1
+
+dump 1 all custom 1 dump_Fcc.out id type x y z
+
+run 1

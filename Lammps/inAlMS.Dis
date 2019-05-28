@@ -1,0 +1,97 @@
+# ------- initialization      -------------------------------------------------
+units metal
+boundary p p p
+atom_style atomic
+neighbor 2 bin
+
+# ------- scale & computation -------------------------------------------------
+
+variable  Lattice   equal 4.05
+
+compute PEn all pe/atom
+
+# ------- create basic geometry      ------------------------------------------------- 
+
+read_data dump_Dis.out
+change_box all triclinic
+
+
+# ------- EAM potentials      -------------------------------------------------
+
+pair_style eam/alloy
+pair_coeff * * Al99.eam.alloy Al Al
+
+ 
+# ------- timestep & log      -------------------------------------------------
+
+timestep        0.002
+thermo_style custom step temp pxx pyy pzz pxy pxz pyz yz pe
+thermo 100
+
+# ------- energy minimization -------------------------------------------------
+
+variable Etol_CG equal 1.0e-14
+variable Etol_Fire equal 1.0e-15
+
+compute CNA all cna/atom 3.46 
+dump 1 all custom 10000000 dumpMS.out id x y z
+#dump_modify 1 thresh c_CNA > 1
+
+min_style fire
+minimize  ${Etol_Fire} 1.0e-15 100 100
+
+min_style cg
+fix 1 all box/relax x 0.0 y 0.0 z 0.0  xy 0 xz 0 yz 0 fixedpoint 0 0 0 vmax 1e-4 nreset 1
+min_modify line forcezero
+minimize  ${Etol_CG} 1.0e-15 1000 1000
+unfix 1
+
+min_style fire
+minimize  ${Etol_Fire} 1.0e-15 20000 20000
+
+# ------- MS Load————————————————————————
+variable LZ equal zhi-zlo
+
+variable Eel1   equal  0.001008
+variable Eel2   equal  0.001512
+
+variable Ep0   equal  yz/${LZ}	
+
+variable  Lyz1  equal   (${Ep0}+${Eel1})*${LZ}
+variable  Lyz2  equal   (${Ep0}+${Eel2})*${LZ}
+
+undump 1
+
+variable N equal 50
+
+label       loop
+variable    a loop ${N}
+
+variable YZTilt equal ${Lyz1}+(${a}-1)/(${N}-1)*(${Lyz2}-${Lyz1})
+
+change_box all yz final ${YZTilt} remap units box
+
+min_style cg
+fix 1 all box/relax x 0 y 0 z 0.0  xy 0 xz 0 fixedpoint 0 0 0 vmax 1e-4 nreset 1
+min_modify line forcezero
+minimize  ${Etol_CG} 1.0e-15 5000 5000
+unfix 1
+
+min_style fire
+minimize  ${Etol_Fire} 1.0e-15 20000 20000
+
+dump 1 all custom 1 dump.${a}.load id x y z
+run 1
+undump 1
+
+next        a
+jump        inAlMS.Dis loop
+
+
+
+
+
+
+
+
+
